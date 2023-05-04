@@ -1,7 +1,7 @@
 CREATE DATABASE anac;
 USE anac;
 
-/* 1) Creacion de tabla, carga de datos y primer análisis exploratorio.
+/* A) Creacion de tabla, carga de datos y primer análisis exploratorio.
 1.1) Creamos la tabla donde vamos a importar los datos de la ANAC. Por el momento vamos a definir todas con VARCHAR, luego editaremos algunos de ellos:*/
 CREATE TABLE vuelos (
     fecha VARCHAR(100),
@@ -87,8 +87,8 @@ WHERE
     OR aeropuerto IN ('' , ' ')
     OR origen_destino IN ('' , ' ');
     
-/* VALORES DUPLICADOS /*
-/* Buscamos filas duplicadas mediante un CONCAT de todas las columnas */
+/* 2) VALORES DUPLICADOS /*
+/* 2.1) Buscamos filas duplicadas mediante un CONCAT de todas las columnas */
 
 SELECT 
 		concat AS detalle_vuelo
@@ -99,7 +99,7 @@ SELECT
 	HAVING count(concat) > 1
 	ORDER BY 1;
 
-/* Sabemos que todos los vuelos anteriores están duplicados, pero ahora queremos conocer la cantidad de veces y el total de filas a eliminar: 3735 */
+/* 2.2) Sabemos que todos los vuelos anteriores están duplicados, pero ahora queremos conocer la cantidad de veces y el total de filas a eliminar: 3738 filas*/
 SELECT
 	*,
     SUM(records - 1) OVER (ORDER BY ranking) AS suma_duplicados_acumulado,
@@ -116,12 +116,12 @@ FROM (
 	HAVING count(concat) > 1
 	ORDER BY 1) aa;
 
-/* Para eliminar los duplicados, utilizaremos una columna auxiliar ID que la definimos con AUTO INCREMENT */
+/* 2.3) Para eliminar los duplicados, utilizaremos una columna auxiliar ID que la definimos con AUTO INCREMENT (la colocamos en primer lugar) */
 
 ALTER TABLE vuelos ADD id INT AUTO_INCREMENT UNIQUE FIRST;
 
-/* Queremos encontrar los ID de todas las filas duplicadas, por lo que usamos la función ROW_NUMBER haciendo un PARTITION BY todas las columnas, esto
-genera un nuevo número de fila cuando alguna de las columnas cambian, por lo que todos los mayores a 1 (lo conservamos como original) son duplicados.*/
+/* 2.4) Queremos encontrar los ID de todas las filas duplicadas. Usamos la función ROW_NUMBER haciendo un PARTITION BY usando todas las columnas, esto
+genera un nuevo número de fila cuando alguna de las columnas cambian, por lo que las filas mayores a 1 (la conservamos como original) son duplicadas.*/
 
 SELECT id FROM (
 	SELECT
@@ -130,7 +130,7 @@ SELECT id FROM (
 	FROM vuelos) a
 WHERE num_fila > 1;
 
-/* Eliminamos los duplicados */
+/* 2.5) Eliminamos los duplicados */
 DELETE FROM vuelos
 WHERE id IN (SELECT id FROM (
 	SELECT
@@ -139,8 +139,8 @@ WHERE id IN (SELECT id FROM (
 	FROM vuelos) a
 WHERE num_fila > 1);
 
-/* 2) Unificación de Fecha y Hora y cambio de tipo de dato.*/
-/* 2.1) Analizamos la columna "Hora": */
+/* B) Análisis de columnas */ 
+/* 1.1) Unificación de Fecha y Hora y cambio de tipo de dato. Analizamos la columna "Hora" y "Fecha": */
 SELECT DISTINCT
     LENGTH(hora), COUNT(hora), LENGTH(fecha), COUNT(fecha)
 FROM
@@ -153,7 +153,7 @@ FROM
     vuelos
 GROUP BY 1;
 
-/* Buscamos que no haya letras en las columnas: */
+/* 1.2) Buscamos que no haya letras en las columnas: */
 SELECT *
 FROM
     vuelos
@@ -181,7 +181,7 @@ ALTER TABLE vuelos DROP COLUMN fecha_hora;
 ALTER TABLE vuelos RENAME COLUMN fecha_hora2 TO fecha;
 ALTER TABLE vuelos MODIFY COLUMN fecha DATETIME AFTER id;
 
-/* 3) Análisis de columna clase_vuelo: 25 clases de vuelo diferente. */
+/* 3) Análisis de columna clase_vuelo: 16 clases de vuelo diferente. */
 SELECT DISTINCT 
 	clase_vuelo, 
 	COUNT(movimiento) as movimientos 
@@ -240,6 +240,21 @@ SELECT * FROM aero_nacional;
 
 SELECT * FROM aero_internacional;
 
+/*Creamos un procedure que toma como input algún código de aeropuerto (FAA o OACI), y nos entrega información complementaria:*/
+DELIMITER $$
+CREATE PROCEDURE info_aeropuerto(IN codigo_input VARCHAR(10))
+BEGIN
+	WITH cte AS (SELECT codigo, denominacion, referencia AS ciudad, provincia AS provincia_pais FROM aero_nacional
+		UNION
+        SELECT codigo, denominacion, ciudad, pais FROM aero_internacional)
+	SELECT * FROM cte WHERE codigo=codigo_input;
+END $$
+DELIMITER ;
+
+/*Consultamos el aeropuerto de Madrid LEMD o el aeropuerto nacional de Mendoza DOZ: */
+CALL info_aeropuerto("LEMD");
+CALL info_aeropuerto("DOZ");
+
 /* 6.1) Aplicaremos la siguiente lógica en el análisis: solo consideraremos como válidos a los códigos de columna "aeropuerto" y "origen_destino" que estén presentes 
 en las tablas [aero_nacional] y [aero internacional], esto se debe a la necesidad de conocer a que ciudad o país corresponde cada código. A su vez, eliminaremos de estas tablas
 los códigos de aeropuertos que no tengan movimientos en la tabla [Vuelos] ya que no son de nuestra incumbencia. */
@@ -283,9 +298,9 @@ SET codigo_valido =
 		ELSE "Valido"
         END;
         
-/* Existen 25.404 movimientos que no pueden vincularse a códigos de aeropuertos conocidos */
-SELECT COUNT(movimiento) FROM vuelos
-	WHERE codigo_valido = "No valido";
+/* Existen 25.403 movimientos que no pueden vincularse a códigos de aeropuertos conocidos */
+SELECT codigo_valido, COUNT(*) FROM vuelos
+GROUP BY 1;
 
 /* 6.2) Códigos de aeropuertos de tabla "aero_nacional" que no tienen movimientos registrados en tabla "Vuelos": */
 SELECT a.codigo FROM (
@@ -326,7 +341,7 @@ with CTE as (
 	WHERE b.codigo IS NULL)
 DELETE FROM aero_internacional WHERE codigo IN (SELECT * FROM cte);
 
-/* 7) Análisis de columna "aerolinea": a priori se observan 2.127 aerolíneas distintas. */
+/* 7) Análisis de columna "aerolinea": a priori se observan 2.126 aerolíneas distintas. */
 SELECT 
 	AEROLINEA, 
     COUNT(*) 
