@@ -8,6 +8,6 @@ El presente proyecto tiene como objetivo evaluar la situación del mercado aeron
 
 - Para la integración con Looker Studio, se utilizó Google Cloud. Se cargaron tablas intermedias en la nube y luego utilizando Big Query, se crearon sentencias específicas para la creación de gráficos.
 
-- El tablero se encuentra disponible en el siguiente link: [Dashboard Mercado Aeronáutico](https://lookerstudio.google.com/s/tIUtQxJs5_I)
+- El tablero se encuentra disponible en el siguiente link: [Dashboard Mercado Aeronáutico](https://lookerstudio.google.com/reporting/3e9043de-2bea-4144-b39e-042104fe9919)
 
 - En la presente carpeta encontrarán los códigos en MySQL para el análisis exploratorio y limpieza del dataset, como así tambien las consultas para tablas utilizadas. A su vez, se anexan las tablas externas utilizadas.
